@@ -28,11 +28,6 @@ function DashboardCard({ title, description, icon: Icon, value, link }: Dashboar
   return link ? <a href={link} className="block hover:shadow-lg transition-shadow rounded-lg"><Card>{content}</Card></a> : <Card>{content}</Card>;
 }
 
-export const metadata: Metadata = {
-  title: "Dashboard | LMS",
-  description: "Your learning dashboard",
-};
-
 export default function DashboardPage() {
   const { role } = useUserRole();
 
