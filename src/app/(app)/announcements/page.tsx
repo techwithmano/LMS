@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useState, FormEvent, ChangeEvent } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useUserRole } from "@/hooks/use-user-role";
