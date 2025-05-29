@@ -1,8 +1,9 @@
 "use client"
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Metadata } from "next";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useUserRole, type UserRole } from "@/hooks/use-user-role"
-import { BookOpen, ClipboardCheck, Users, TrendingUp, Settings, Megaphone } from "lucide-react"
+import { BookOpen, ClipboardCheck, Users, TrendingUp, Settings, Megaphone, FileText } from "lucide-react"
 import Image from "next/image";
 
 interface DashboardCardProps {
@@ -26,6 +27,11 @@ function DashboardCard({ title, description, icon: Icon, value, link }: Dashboar
   );
   return link ? <a href={link} className="block hover:shadow-lg transition-shadow rounded-lg"><Card>{content}</Card></a> : <Card>{content}</Card>;
 }
+
+export const metadata: Metadata = {
+  title: "Dashboard | LMS",
+  description: "Your learning dashboard",
+};
 
 export default function DashboardPage() {
   const { role } = useUserRole();
@@ -71,13 +77,109 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <h1 className="text-3xl font-bold tracking-tight">{welcomeMessage}</h1>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {cardsToDisplay.map((card, index) => (
-          <DashboardCard key={index} {...card} />
-        ))}
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold">Welcome back!</h1>
+        <p className="text-gray-500">
+          Here&apos;s an overview of your learning progress
+        </p>
       </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Active Courses</CardTitle>
+            <BookOpen className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">3</div>
+            <p className="text-xs text-muted-foreground">
+              +2 from last month
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pending Assignments</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">5</div>
+            <p className="text-xs text-muted-foreground">
+              Due this week
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Classmates</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">24</div>
+            <p className="text-xs text-muted-foreground">
+              Across all courses
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Activity</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex items-center">
+                <div className="ml-4 space-y-1">
+                  <p className="text-sm font-medium">Completed Assignment</p>
+                  <p className="text-sm text-muted-foreground">
+                    Introduction to Web Development
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center">
+                <div className="ml-4 space-y-1">
+                  <p className="text-sm font-medium">New Course Material</p>
+                  <p className="text-sm text-muted-foreground">
+                    Advanced JavaScript Concepts
+                  </p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Upcoming Deadlines</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex items-center">
+                <div className="ml-4 space-y-1">
+                  <p className="text-sm font-medium">Final Project Submission</p>
+                  <p className="text-sm text-muted-foreground">
+                    Due in 5 days
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center">
+                <div className="ml-4 space-y-1">
+                  <p className="text-sm font-medium">Weekly Quiz</p>
+                  <p className="text-sm text-muted-foreground">
+                    Due in 2 days
+                  </p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle>Getting Started</CardTitle>

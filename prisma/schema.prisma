@@ -1,45 +1,28 @@
-// This is your Prisma schema file
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
   provider = "prisma-client-js"
 }
 
-enum UserRole {
-  STUDENT
-  TEACHER
-  ADMIN
-  OWNER
-}
-
-enum UserStatus {
-  ACTIVE
-  INACTIVE
-  SUSPENDED
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
-  id            String      @id @default(cuid())
-  email         String      @unique
+  id            String    @id @default(cuid())
   name          String
+  email         String    @unique
   password      String
-  role          UserRole    @default(STUDENT)
-  status        UserStatus  @default(ACTIVE)
-  avatarUrl     String?
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  lastLogin     DateTime?
-  
-  // Relations
-  courses       Course[]    @relation("EnrolledCourses")
-  taughtCourses Course[]    @relation("TeachingCourses")
+  role          Role      @default(STUDENT)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  courses       Course[]  @relation("EnrolledCourses")
+  taughtCourses Course[]  @relation("TeachingCourses")
   assignments   Assignment[]
   submissions   Submission[]
-  announcements Announcement[]
-  messages      Message[]   @relation("SentMessages")
+  messages      Message[]  @relation("SentMessages")
   receivedMessages Message[] @relation("ReceivedMessages")
 }
 
@@ -47,16 +30,24 @@ model Course {
   id          String    @id @default(cuid())
   title       String
   description String
-  code        String    @unique
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-  
-  // Relations
   teacher     User      @relation("TeachingCourses", fields: [teacherId], references: [id])
   teacherId   String
   students    User[]    @relation("EnrolledCourses")
   assignments Assignment[]
-  announcements Announcement[]
+  modules     Module[]
+}
+
+model Module {
+  id          String    @id @default(cuid())
+  title       String
+  content     String
+  order       Int
+  course      Course    @relation(fields: [courseId], references: [id])
+  courseId    String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 model Assignment {
@@ -64,55 +55,42 @@ model Assignment {
   title       String
   description String
   dueDate     DateTime
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  
-  // Relations
   course      Course    @relation(fields: [courseId], references: [id])
   courseId    String
-  createdBy   User      @relation(fields: [createdById], references: [id])
-  createdById String
+  teacher     User      @relation(fields: [teacherId], references: [id])
+  teacherId   String
   submissions Submission[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 model Submission {
-  id            String    @id @default(cuid())
-  content       String
-  grade         Float?
-  feedback      String?
-  submittedAt   DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  
-  // Relations
-  assignment    Assignment @relation(fields: [assignmentId], references: [id])
-  assignmentId  String
-  student       User      @relation(fields: [studentId], references: [id])
-  studentId     String
-}
-
-model Announcement {
-  id          String    @id @default(cuid())
-  title       String
-  content     String
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  
-  // Relations
-  course      Course?   @relation(fields: [courseId], references: [id])
-  courseId    String?
-  createdBy   User      @relation(fields: [createdById], references: [id])
-  createdById String
+  id           String    @id @default(cuid())
+  content      String
+  grade        Float?
+  feedback     String?
+  assignment   Assignment @relation(fields: [assignmentId], references: [id])
+  assignmentId String
+  student      User      @relation(fields: [studentId], references: [id])
+  studentId    String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 }
 
 model Message {
   id          String    @id @default(cuid())
   content     String
-  createdAt   DateTime  @default(now())
-  read        Boolean   @default(false)
-  
-  // Relations
   sender      User      @relation("SentMessages", fields: [senderId], references: [id])
   senderId    String
   receiver    User      @relation("ReceivedMessages", fields: [receiverId], references: [id])
   receiverId  String
+  read        Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+enum Role {
+  STUDENT
+  TEACHER
+  ADMIN
 } 

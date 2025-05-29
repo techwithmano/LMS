@@ -1,11 +1,29 @@
-import { PrismaAdapter } from "@auth/prisma-adapter";
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { db } from "@/lib/db";
-import { compare } from "bcrypt";
+import { compare } from "bcryptjs";
+import { prisma } from "@/lib/prisma";
+
+type UserRole = "STUDENT" | "TEACHER" | "ADMIN";
+
+declare module "next-auth" {
+  interface Session {
+    user: {
+      id: string;
+      name: string;
+      email: string;
+      role: UserRole;
+    }
+  }
+
+  interface User {
+    id: string;
+    name: string;
+    email: string;
+    role: UserRole;
+  }
+}
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(db),
   session: {
     strategy: "jwt",
   },
@@ -21,30 +39,27 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
-          return null;
+          throw new Error("Invalid credentials");
         }
 
-        const user = await db.user.findUnique({
+        const user = await prisma.user.findUnique({
           where: {
             email: credentials.email,
           },
         });
 
         if (!user) {
-          return null;
+          throw new Error("Invalid credentials");
         }
 
-        const isPasswordValid = await compare(credentials.password, user.password);
+        const isPasswordValid = await compare(
+          credentials.password,
+          user.password
+        );
 
         if (!isPasswordValid) {
-          return null;
+          throw new Error("Invalid credentials");
         }
-
-        // Update last login
-        await db.user.update({
-          where: { id: user.id },
-          data: { lastLogin: new Date() },
-        });
 
         return {
           id: user.id,
@@ -56,35 +71,24 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async session({ token, session }) {
-      if (token) {
-        session.user.id = token.id;
-        session.user.name = token.name;
-        session.user.email = token.email;
-        session.user.role = token.role;
-      }
-
-      return session;
-    },
     async jwt({ token, user }) {
-      const dbUser = await db.user.findFirst({
-        where: {
-          email: token.email!,
-        },
-      });
-
-      if (!dbUser) {
-        if (user) {
-          token.id = user?.id;
-        }
-        return token;
+      if (user) {
+        return {
+          ...token,
+          id: user.id,
+          role: user.role,
+        };
       }
-
+      return token;
+    },
+    async session({ session, token }) {
       return {
-        id: dbUser.id,
-        name: dbUser.name,
-        email: dbUser.email,
-        role: dbUser.role,
+        ...session,
+        user: {
+          ...session.user,
+          id: token.id,
+          role: token.role,
+        },
       };
     },
   },
