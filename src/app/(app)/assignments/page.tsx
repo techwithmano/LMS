@@ -1,14 +1,17 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useUserRole } from "@/hooks/use-user-role"
 
 export default function AssignmentsPage() {
+  const { role } = useUserRole();
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Assignments</h1>
         <p className="text-gray-500">
-          View and manage your assignments
+          {role === 'student' ? 'View and submit your assignments' : 'Manage course assignments'}
         </p>
       </div>
 
@@ -19,18 +22,22 @@ export default function AssignmentsPage() {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
-              No pending assignments
+              {role === 'student' 
+                ? 'You have no pending assignments'
+                : 'No assignments need review'}
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Completed Assignments</CardTitle>
+            <CardTitle>Recent Submissions</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
-              No completed assignments
+              {role === 'student'
+                ? 'You have no recent submissions'
+                : 'No recent submissions to review'}
             </p>
           </CardContent>
         </Card>

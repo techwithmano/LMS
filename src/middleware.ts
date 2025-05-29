@@ -37,7 +37,10 @@ export async function middleware(request: NextRequest) {
   // If the path is public and user is authenticated, redirect to dashboard
   if (isPublicPath && token) {
     try {
-      verify(token, process.env.JWT_SECRET || "your-secret-key");
+      if (!process.env.JWT_SECRET) {
+        throw new Error("JWT_SECRET is not configured");
+      }
+      verify(token, process.env.JWT_SECRET);
       return NextResponse.redirect(new URL("/dashboard", request.url));
     } catch (error) {
       // Invalid token, clear it
@@ -55,7 +58,10 @@ export async function middleware(request: NextRequest) {
   // If the path is not public and user is authenticated, verify token
   if (!isPublicPath && token) {
     try {
-      verify(token, process.env.JWT_SECRET || "your-secret-key");
+      if (!process.env.JWT_SECRET) {
+        throw new Error("JWT_SECRET is not configured");
+      }
+      verify(token, process.env.JWT_SECRET);
       return response;
     } catch (error) {
       // Invalid token, clear it and redirect to login

@@ -5,9 +5,6 @@ const nextConfig = {
   images: {
     domains: ['avatars.githubusercontent.com'],
   },
-  experimental: {
-    serverComponentsExternalPackages: ['jsonwebtoken'],
-  },
 }
 
 module.exports = nextConfig 
