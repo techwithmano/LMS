@@ -1,7 +1,7 @@
 "use client"
 
 import { Metadata } from "next";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { useUserRole, type UserRole } from "@/hooks/use-user-role"
 import { BookOpen, ClipboardCheck, Users, TrendingUp, Settings, Megaphone, FileText } from "lucide-react"
 import Image from "next/image";
