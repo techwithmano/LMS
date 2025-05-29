@@ -2,8 +2,8 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useUserRole, type UserRole } from "@/hooks/use-user-role"
-import { navConfig, type NavItem } from "@/config/nav-config"
+import { useUserRole } from "@/hooks/use-user-role"
+import { navConfig } from "@/config/nav-config"
 import { cn } from "@/lib/utils"
 import {
   SidebarMenu,
@@ -17,8 +17,10 @@ interface SidebarNavProps {
 }
 
 export function SidebarNav({ isCollapsed }: SidebarNavProps) {
+  const { role, loading } = useUserRole();
   const pathname = usePathname();
-  const { role } = useUserRole();
+
+  if (loading) return null;
 
   const filteredNavItems = navConfig.filter(item => item.roles.includes(role));
 
@@ -49,15 +51,11 @@ export function SidebarNav({ isCollapsed }: SidebarNavProps) {
                       aria-label={item.title}
                     >
                       <Icon className="h-5 w-5" />
-                      {!isCollapsed && <span className="truncate">{item.title}</span>}
+                      <span className="ml-2 truncate">{item.title}</span>
                     </SidebarMenuButton>
                   </Link>
                 </TooltipTrigger>
-                {isCollapsed && (
-                  <TooltipContent side="right" align="center">
-                    {item.title}
-                  </TooltipContent>
-                )}
+                <TooltipContent side="right">{item.title}</TooltipContent>
               </Tooltip>
             </TooltipProvider>
           </SidebarMenuItem>

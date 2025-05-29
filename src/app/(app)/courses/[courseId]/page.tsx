@@ -1,8 +1,16 @@
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlayCircle, FileText, ChevronRight, ListChecks } from "lucide-react";
+import { PlayCircle, FileText, ChevronRight, ListChecks, PlusCircle, Edit, Trash2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { useEffect, useState, FormEvent, ChangeEvent } from "react";
+import { supabase } from "@/lib/supabaseClient";
+import { useUserRole } from "@/hooks/use-user-role";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useUserProfile } from "@/hooks/useUserProfile";
 
 interface Lesson {
   id: string;
@@ -12,24 +20,196 @@ interface Lesson {
   isCompleted: boolean;
 }
 
-const sampleLessons: Lesson[] = [
-  { id: "1", title: "Introduction to the Course", type: "video", duration: "10:32", isCompleted: true },
-  { id: "2", title: "Setting up Your Environment", type: "text", isCompleted: true },
-  { id: "3", title: "Core Concepts - Part 1", type: "video", duration: "25:15", isCompleted: false },
-  { id: "4", title: "Practical Exercise", type: "text", isCompleted: false },
-];
-
 export default function CourseDetailPage({ params }: { params: { courseId: string } }) {
-  // In a real app, fetch course data based on params.courseId
-  const course = {
-    id: params.courseId,
-    title: "Introduction to Next.js",
-    description: "Learn the fundamentals of Next.js, React, and modern web development. This course covers everything from basic setup to advanced deployment strategies.",
-    instructor: "Jane Doe",
-    imageUrl: "https://placehold.co/1200x400.png",
-    imageHint: "programming abstract",
-    lessons: sampleLessons,
+  const { role } = useUserRole();
+  const { profile } = useUserProfile();
+  const [course, setCourse] = useState<any>(null);
+  const [lessons, setLessons] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [showDialog, setShowDialog] = useState(false);
+  const [editingLesson, setEditingLesson] = useState<any | null>(null);
+  const [lessonForm, setLessonForm] = useState<{ title: string; type: string; content: string; video_url: string; duration: string }>({ title: '', type: 'video', content: '', video_url: '', duration: '' });
+  const [saving, setSaving] = useState(false);
+  const [enrollments, setEnrollments] = useState<any[]>([]);
+  const [allStudents, setAllStudents] = useState<any[]>([]);
+  const [enrolling, setEnrolling] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState("");
+  const [files, setFiles] = useState<any[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [fileError, setFileError] = useState("");
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      setError("");
+      // Check access for students
+      if (role === 'student') {
+        const { data: enrollments, error: enrollError } = await supabase
+          .from('enrollments')
+          .select('id')
+          .eq('course_id', params.courseId)
+          .eq('student_id', (await supabase.auth.getUser()).data.user?.id);
+        if (enrollError) {
+          setError(enrollError.message);
+          setLoading(false);
+          return;
+        }
+        if (!enrollments || enrollments.length === 0) {
+          setError('You are not enrolled in this course.');
+          setLoading(false);
+          return;
+        }
+      }
+      const { data: courseData, error: courseError } = await supabase.from('courses').select('*').eq('id', params.courseId).single();
+      if (courseError) {
+        setError(courseError.message);
+        setLoading(false);
+        return;
+      }
+      setCourse(courseData);
+      const { data: lessonsData, error: lessonsError } = await supabase.from('lessons').select('*').eq('course_id', params.courseId).order('order_num', { ascending: true });
+      if (lessonsError) setError(lessonsError.message);
+      else setLessons(lessonsData ?? []);
+      setLoading(false);
+    };
+    fetchData();
+  }, [params.courseId, role]);
+
+  useEffect(() => {
+    const fetchEnrollments = async () => {
+      if (role !== 'admin' && role !== 'owner') return;
+      const { data: enrolls } = await supabase.from('enrollments').select('*, profiles:student_id(email, full_name)').eq('course_id', params.courseId);
+      setEnrollments(enrolls ?? []);
+      const { data: students } = await supabase.from('profiles').select('id, email, full_name').eq('role', 'student');
+      setAllStudents(students ?? []);
+    };
+    fetchEnrollments();
+  }, [params.courseId, role, showDialog]);
+
+  useEffect(() => {
+    const fetchFiles = async () => {
+      const { data, error } = await supabase.from('files').select('*').eq('course_id', params.courseId).order('uploaded_at', { ascending: false });
+      if (!error) setFiles(data ?? []);
+    };
+    fetchFiles();
+  }, [params.courseId]);
+
+  const openCreate = () => {
+    setEditingLesson(null);
+    setLessonForm({ title: '', type: 'video', content: '', video_url: '', duration: '' });
+    setShowDialog(true);
   };
+  const openEdit = (lesson: any) => {
+    setEditingLesson(lesson);
+    setLessonForm({
+      title: lesson.title,
+      type: lesson.type,
+      content: lesson.content || '',
+      video_url: lesson.video_url || '',
+      duration: lesson.duration || '',
+    });
+    setShowDialog(true);
+  };
+  const handleSave = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      if (editingLesson) {
+        // Update
+        const { error } = await supabase.from('lessons').update(lessonForm).eq('id', editingLesson.id);
+        if (error) throw new Error(error.message);
+      } else {
+        // Create
+        const order_num = lessons.length + 1;
+        const { error } = await supabase.from('lessons').insert([{ ...lessonForm, course_id: params.courseId, order_num }]);
+        if (error) throw new Error(error.message);
+      }
+      setShowDialog(false);
+      // Refresh lessons
+      const { data, error: fetchError } = await supabase.from('lessons').select('*').eq('course_id', params.courseId).order('order_num', { ascending: true });
+      if (!fetchError) setLessons(data ?? []);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this lesson?')) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase.from('lessons').delete().eq('id', id);
+      if (error) throw new Error(error.message);
+      setLessons(lessons.filter((l: any) => l.id !== id));
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+  const handleEnroll = async (e: FormEvent) => {
+    e.preventDefault();
+    setEnrolling(true);
+    try {
+      const { error } = await supabase.from('enrollments').insert([{ course_id: params.courseId, student_id: selectedStudent }]);
+      if (error) throw new Error(error.message);
+      setSelectedStudent("");
+      // Refresh
+      const { data: enrolls } = await supabase.from('enrollments').select('*, profiles:student_id(email, full_name)').eq('course_id', params.courseId);
+      setEnrollments(enrolls ?? []);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setEnrolling(false);
+    }
+  };
+  const handleUnenroll = async (enrollmentId: string) => {
+    if (!confirm('Remove this student from the course?')) return;
+    setEnrolling(true);
+    try {
+      const { error } = await supabase.from('enrollments').delete().eq('id', enrollmentId);
+      if (error) throw new Error(error.message);
+      setEnrollments(enrollments.filter((e: any) => e.id !== enrollmentId));
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setEnrolling(false);
+    }
+  };
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !profile) return;
+    setUploading(true);
+    setFileError("");
+    try {
+      // Upload to Supabase Storage
+      const filePath = `${params.courseId}/${Date.now()}_${file.name}`;
+      let { error: uploadError } = await supabase.storage.from('course-files').upload(filePath, file);
+      if (uploadError) throw new Error(uploadError.message);
+      const fileUrl = supabase.storage.from('course-files').getPublicUrl(filePath).publicUrl;
+      // Insert metadata
+      const { error: dbError } = await supabase.from('files').insert({
+        course_id: params.courseId,
+        uploader_id: profile.id,
+        file_url: fileUrl,
+        file_name: file.name,
+        file_type: file.type,
+      });
+      if (dbError) throw new Error(dbError.message);
+      // Refresh
+      const { data } = await supabase.from('files').select('*').eq('course_id', params.courseId).order('uploaded_at', { ascending: false });
+      setFiles(data ?? []);
+    } catch (err: any) {
+      setFileError(err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  if (loading) return <div className="text-center py-8">Loading course...</div>;
+  if (error) return (<div className="text-center text-red-500 py-8">{error}</div>);
 
   return (
     <div className="space-y-6">
@@ -60,14 +240,21 @@ export default function CourseDetailPage({ params }: { params: { courseId: strin
           </Card>
 
           <Card>
-            <CardHeader>
-              <CardTitle>Course Content</CardTitle>
-              <CardDescription>Browse through the lessons and start learning.</CardDescription>
+            <CardHeader className="flex flex-row justify-between items-center">
+              <div>
+                <CardTitle>Course Content</CardTitle>
+                <CardDescription>Browse through the lessons and start learning.</CardDescription>
+              </div>
+              {(role === 'admin' || role === 'owner') && (
+                <Button onClick={openCreate} size="sm">
+                  <PlusCircle className="mr-2 h-4 w-4" /> Add Lesson
+                </Button>
+              )}
             </CardHeader>
             <CardContent>
               <ul className="space-y-2">
-                {course.lessons.map(lesson => (
-                  <li key={lesson.id}>
+                {lessons.map(lesson => (
+                  <li key={lesson.id} className="flex items-center justify-between group">
                     <Link href={`/courses/${course.id}/lessons/${lesson.id}`} passHref>
                       <Button variant="ghost" className="w-full justify-between h-auto py-3 px-4">
                         <div className="flex items-center gap-3 text-left">
@@ -78,11 +265,21 @@ export default function CourseDetailPage({ params }: { params: { courseId: strin
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                           {lesson.isCompleted && <ListChecks className="h-5 w-5 text-green-500" />}
+                          {/* Completion icon logic can go here */}
                           <ChevronRight className="h-5 w-5 text-muted-foreground" />
                         </div>
                       </Button>
                     </Link>
+                    {(role === 'admin' || role === 'owner') && (
+                      <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button variant="outline" size="icon" aria-label="Edit Lesson" onClick={() => openEdit(lesson)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button variant="destructive" size="icon" aria-label="Delete Lesson" onClick={() => handleDelete(lesson.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -97,9 +294,9 @@ export default function CourseDetailPage({ params }: { params: { courseId: strin
             </CardHeader>
             <CardContent className="text-center">
                 <div className="text-4xl font-bold text-primary">
-                    {Math.round(course.lessons.filter(l => l.isCompleted).length / course.lessons.length * 100)}%
+                  {lessons.length} Lessons
                 </div>
-                <p className="text-muted-foreground">Completed</p>
+                <p className="text-muted-foreground">Total Lessons</p>
                 <Button className="mt-4 w-full">Continue Learning</Button>
             </CardContent>
           </Card>
@@ -115,8 +312,111 @@ export default function CourseDetailPage({ params }: { params: { courseId: strin
               </ul>
             </CardContent>
           </Card>
+          {(role === 'admin' || role === 'owner') && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Enrolled Students</CardTitle>
+                <CardDescription>Manage which students are assigned to this course.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleEnroll} className="flex gap-2 mb-4">
+                  <select className="border rounded-md p-2 flex-1" value={selectedStudent} onChange={e => setSelectedStudent(e.target.value)} required>
+                    <option value="">Select student to enroll...</option>
+                    {allStudents.filter(s => !enrollments.some(e => e.student_id === s.id)).map(s => (
+                      <option key={s.id} value={s.id}>{s.full_name || s.email}</option>
+                    ))}
+                  </select>
+                  <Button type="submit" disabled={enrolling || !selectedStudent}>{enrolling ? 'Enrolling...' : 'Enroll'}</Button>
+                </form>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {enrollments.map(e => (
+                      <TableRow key={e.id}>
+                        <TableCell>{e.profiles?.full_name || e.profiles?.email}</TableCell>
+                        <TableCell>{e.profiles?.email}</TableCell>
+                        <TableCell>
+                          <Button variant="destructive" size="sm" onClick={() => handleUnenroll(e.id)}>Remove</Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
+      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingLesson ? 'Edit Lesson' : 'Create New Lesson'}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSave} className="space-y-4">
+            <div>
+              <Label htmlFor="title">Title</Label>
+              <Input id="title" value={lessonForm.title} onChange={(e: ChangeEvent<HTMLInputElement>) => setLessonForm(f => ({ ...f, title: e.target.value }))} required />
+            </div>
+            <div>
+              <Label htmlFor="type">Type</Label>
+              <select id="type" className="w-full border rounded-md p-2" value={lessonForm.type} onChange={e => setLessonForm(f => ({ ...f, type: e.target.value }))}>
+                <option value="video">Video</option>
+                <option value="text">Text</option>
+              </select>
+            </div>
+            {lessonForm.type === 'video' && (
+              <>
+                <div>
+                  <Label htmlFor="video_url">Video URL</Label>
+                  <Input id="video_url" value={lessonForm.video_url} onChange={(e: ChangeEvent<HTMLInputElement>) => setLessonForm(f => ({ ...f, video_url: e.target.value }))} />
+                </div>
+                <div>
+                  <Label htmlFor="duration">Duration</Label>
+                  <Input id="duration" value={lessonForm.duration} onChange={(e: ChangeEvent<HTMLInputElement>) => setLessonForm(f => ({ ...f, duration: e.target.value }))} />
+                </div>
+              </>
+            )}
+            <div>
+              <Label htmlFor="content">Content</Label>
+              <textarea id="content" className="w-full border rounded-md p-2 min-h-[100px]" value={lessonForm.content} onChange={e => setLessonForm(f => ({ ...f, content: e.target.value }))} />
+            </div>
+            {error && <div className="text-red-600 text-sm text-center">{error}</div>}
+            <DialogFooter>
+              <Button type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Resources & Files</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {(role === 'admin' || role === 'owner' || role === 'student') && (
+            <div className="mb-4">
+              <input type="file" onChange={handleFileUpload} disabled={uploading} />
+              {fileError && <div className="text-red-600 text-sm mt-1">{fileError}</div>}
+            </div>
+          )}
+          <ul className="space-y-2 text-sm">
+            {files.map(f => (
+              <li key={f.id} className="flex items-center gap-2">
+                <a href={f.file_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{f.file_name}</a>
+                <span className="text-xs text-muted-foreground">{f.file_type}</span>
+                <span className="text-xs text-muted-foreground">{f.uploaded_at?.slice(0,10) || ''}</span>
+              </li>
+            ))}
+            {files.length === 0 && <li className="text-muted-foreground">No files uploaded yet.</li>}
+          </ul>
+        </CardContent>
+      </Card>
     </div>
   );
 }

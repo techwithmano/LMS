@@ -2,26 +2,33 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, CheckCircle } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function LessonPage({ params }: { params: { courseId: string, lessonId: string } }) {
-  // In a real app, fetch lesson data based on params.courseId and params.lessonId
-  const lesson = {
-    id: params.lessonId,
-    courseId: params.courseId,
-    title: "Core Concepts - Part 1",
-    type: "video", // or "text"
-    content: `
-      <p>This lesson covers the core concepts of our topic. We will explore the fundamental building blocks and understand how they interact.</p>
-      <p>Key takeaways from this lesson:</p>
-      <ul>
-        <li>Understanding of Concept A</li>
-        <li>Introduction to Concept B</li>
-        <li>Practical application of Concept C</li>
-      </ul>
-      <p>Make sure to review the supplementary materials and complete the quiz at the end of this module.</p>
-    `,
-    videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ", // Example video
-  };
+  const [lesson, setLesson] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const fetchLesson = async () => {
+      setLoading(true);
+      setError("");
+      const { data, error } = await supabase
+        .from('lessons')
+        .select('*')
+        .eq('course_id', params.courseId)
+        .eq('id', params.lessonId)
+        .single();
+      if (error) setError(error.message);
+      else setLesson(data);
+      setLoading(false);
+    };
+    fetchLesson();
+  }, [params.courseId, params.lessonId]);
+
+  if (loading) return <div className="text-center py-8">Loading lesson...</div>;
+  if (error || !lesson) return <div className="text-center text-red-500 py-8">{error || 'Lesson not found.'}</div>;
 
   const nextLessonId = (parseInt(params.lessonId) + 1).toString(); // simplified logic
   const prevLessonId = (parseInt(params.lessonId) - 1).toString(); // simplified logic
@@ -29,7 +36,7 @@ export default function LessonPage({ params }: { params: { courseId: string, les
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <Link href={`/courses/${lesson.courseId}`} passHref>
+        <Link href={`/courses/${lesson.course_id}`} passHref>
           <Button variant="outline">
             <ChevronLeft className="mr-2 h-4 w-4" /> Back to Course
           </Button>
@@ -40,12 +47,12 @@ export default function LessonPage({ params }: { params: { courseId: string, les
       
       <Card>
         <CardContent className="pt-6">
-          {lesson.type === "video" && lesson.videoUrl && (
+          {lesson.type === "video" && lesson.video_url && (
             <div className="aspect-video mb-6">
               <iframe
                 width="100%"
                 height="100%"
-                src={lesson.videoUrl}
+                src={lesson.video_url}
                 title="Lesson Video"
                 frameBorder="0"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -60,7 +67,7 @@ export default function LessonPage({ params }: { params: { courseId: string, les
 
       <div className="flex justify-between items-center">
         {parseInt(params.lessonId) > 1 ? (
-          <Link href={`/courses/${lesson.courseId}/lessons/${prevLessonId}`} passHref>
+          <Link href={`/courses/${lesson.course_id}/lessons/${prevLessonId}`} passHref>
             <Button variant="outline">
               <ChevronLeft className="mr-2 h-4 w-4" /> Previous Lesson
             </Button>
@@ -70,7 +77,7 @@ export default function LessonPage({ params }: { params: { courseId: string, les
             <CheckCircle className="mr-2 h-4 w-4" /> Mark as Complete
         </Button>
         {/* This is just a sample, real app needs to check if there is a next lesson */}
-        <Link href={`/courses/${lesson.courseId}/lessons/${nextLessonId}`} passHref>
+        <Link href={`/courses/${lesson.course_id}/lessons/${nextLessonId}`} passHref>
           <Button variant="outline">
             Next Lesson <ChevronRight className="ml-2 h-4 w-4" />
           </Button>

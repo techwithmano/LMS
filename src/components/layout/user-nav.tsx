@@ -12,29 +12,14 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { useUserRole, type UserRole } from "@/hooks/use-user-role"
+import { useAuth } from "@/hooks/useAuth";
+import { useUserRole } from "@/hooks/use-user-role"
 import { User, LogOut, Settings, Users, Shield } from "lucide-react"
 import Link from "next/link"
 
-function RoleSwitcher() {
-  const { role, setRole } = useUserRole();
-  const roles: UserRole[] = ['student', 'admin', 'owner'];
-
-  return (
-    <DropdownMenuGroup>
-      <DropdownMenuLabel>Switch Role (Demo)</DropdownMenuLabel>
-      {roles.map((r) => (
-        <DropdownMenuItem key={r} onClick={() => setRole(r)} disabled={role === r}>
-          {r.charAt(0).toUpperCase() + r.slice(1)}
-          {role === r && <DropdownMenuShortcut>✓</DropdownMenuShortcut>}
-        </DropdownMenuItem>
-      ))}
-    </DropdownMenuGroup>
-  );
-}
-
-
 export function UserNav() {
+  const { user, signOut } = useAuth();
+  // Fallback to role if user is not loaded yet
   const { role } = useUserRole();
 
   const getInitials = (name: string) => {
@@ -44,9 +29,9 @@ export function UserNav() {
     }
     return parts[0].substring(0, 2);
   };
-  
-  const userName = `${role.charAt(0).toUpperCase() + role.slice(1)} User`;
-  const userEmail = `${role}@example.com`;
+
+  const userName = user?.email?.split("@")[0] || `${role.charAt(0).toUpperCase() + role.slice(1)} User`;
+  const userEmail = user?.email || `${role}@example.com`;
 
 
   return (
@@ -95,9 +80,7 @@ export function UserNav() {
           )}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <RoleSwitcher />
-        <DropdownMenuSeparator />
-        <DropdownMenuItem>
+        <DropdownMenuItem onClick={signOut}>
           <LogOut className="mr-2 h-4 w-4" />
           <span>Log out</span>
           <DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut>

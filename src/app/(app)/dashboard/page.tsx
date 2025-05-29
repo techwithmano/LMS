@@ -1,9 +1,11 @@
 "use client"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { useUserRole, type UserRole } from "@/hooks/use-user-role"
-import { BookOpen, ClipboardCheck, Users, TrendingUp, Settings, Megaphone } from "lucide-react"
+import { useUserRole } from "@/hooks/use-user-role"
+import { BookOpen, ClipboardCheck, Users, TrendingUp, Settings, Megaphone, BarChart2 } from "lucide-react"
 import Image from "next/image";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
 
 interface DashboardCardProps {
   title: string;
@@ -29,6 +31,32 @@ function DashboardCard({ title, description, icon: Icon, value, link }: Dashboar
 
 export default function DashboardPage() {
   const { role } = useUserRole();
+  const [stats, setStats] = useState({ users: 0, students: 0, admins: 0, courses: 0, quizzes: 0, assignments: 0, submissions: 0 });
+
+  useEffect(() => {
+    if (role !== 'owner') return;
+    const fetchStats = async () => {
+      const [{ count: users }, { count: students }, { count: admins }, { count: courses }, { count: quizzes }, { count: assignments }, { count: submissions }] = await Promise.all([
+        supabase.from('profiles').select('*', { count: 'exact', head: true }),
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'student'),
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'admin'),
+        supabase.from('courses').select('*', { count: 'exact', head: true }),
+        supabase.from('quizzes').select('*', { count: 'exact', head: true }).eq('type', 'Quiz'),
+        supabase.from('quizzes').select('*', { count: 'exact', head: true }).eq('type', 'Assignment'),
+        supabase.from('submissions').select('*', { count: 'exact', head: true }),
+      ]);
+      setStats({
+        users: users || 0,
+        students: students || 0,
+        admins: admins || 0,
+        courses: courses || 0,
+        quizzes: quizzes || 0,
+        assignments: assignments || 0,
+        submissions: submissions || 0,
+      });
+    };
+    fetchStats();
+  }, [role]);
 
   const studentCards: DashboardCardProps[] = [
     { title: "My Courses", description: "Access your enrolled courses", icon: BookOpen, value: "3 Active", link: "/courses" },
@@ -78,6 +106,54 @@ export default function DashboardPage() {
           <DashboardCard key={index} {...card} />
         ))}
       </div>
+      {role === 'owner' && (
+        <div className="space-y-6">
+          <h1 className="text-3xl font-bold tracking-tight">Analytics Dashboard</h1>
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <Card>
+              <CardHeader>
+                <CardTitle><Users className="inline mr-2" />Total Users</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">{stats.users}</div>
+                <div className="text-muted-foreground">{stats.students} Students, {stats.admins} Admins</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle><BookOpen className="inline mr-2" />Courses</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">{stats.courses}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle><ClipboardCheck className="inline mr-2" />Quizzes</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">{stats.quizzes}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle><ClipboardCheck className="inline mr-2" />Assignments</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">{stats.assignments}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle><BarChart2 className="inline mr-2" />Submissions</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">{stats.submissions}</div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
       <Card>
         <CardHeader>
           <CardTitle>Getting Started</CardTitle>

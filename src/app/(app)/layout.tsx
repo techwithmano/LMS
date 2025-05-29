@@ -13,10 +13,32 @@ import {
 import { Logo } from "@/components/logo"
 import { SidebarNav } from "@/components/layout/sidebar-nav"
 import { AppHeader } from "@/components/layout/app-header"
+import { useAuth } from "@/hooks/useAuth";
+import { usePathname, useRouter } from "next/navigation";
 
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const { state: sidebarState } = useSidebar(); // Get sidebar state
   const isCollapsed = sidebarState === "collapsed";
+
+  // --- Auth protection ---
+  const { user, loading } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  React.useEffect(() => {
+    if (!loading && !user && pathname !== "/login") {
+      router.replace("/login");
+    }
+  }, [user, loading, pathname, router]);
+
+  if (loading || (!user && pathname !== "/login")) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-background">
+        <p className="text-foreground">Loading...</p>
+      </div>
+    );
+  }
+  // --- End auth protection ---
 
   return (
     <>

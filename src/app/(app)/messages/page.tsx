@@ -1,9 +1,13 @@
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Send, Search, UserPlus } from "lucide-react";
+import { useUserRole } from "@/hooks/use-user-role";
+import { useUserProfile } from "@/hooks/useUserProfile";
 
 interface Message {
   id: string;
@@ -21,21 +25,62 @@ interface Conversation {
   unreadCount?: number;
 }
 
-const sampleConversations: Conversation[] = [
-  { id: "1", userName: "Jane Doe (Instructor)", lastMessage: "Sure, I can help with that.", avatarUrl: "https://placehold.co/40x40.png", avatarHint: "woman teacher", unreadCount: 2 },
-  { id: "2", userName: "John Smith (Student)", lastMessage: "Thanks for the clarification!", avatarUrl: "https://placehold.co/40x40.png", avatarHint: "man student" },
-  { id: "3", userName: "Admin Support", lastMessage: "Your request has been processed.", avatarUrl: "https://placehold.co/40x40.png", avatarHint: "support logo" },
-];
-
-const sampleMessages: Message[] = [
-  { id: "1", sender: "other", text: "Hi there! I have a question about the last assignment.", timestamp: "10:30 AM" },
-  { id: "2", sender: "me", text: "Hello! I'd be happy to help. What's your question?", timestamp: "10:31 AM" },
-  { id: "3", sender: "other", text: "I'm having trouble with the first part regarding API integration.", timestamp: "10:32 AM" },
-  { id: "4", sender: "me", text: "Okay, can you specify which API endpoint you are working with?", timestamp: "10:33 AM" },
-];
-
 export default function MessagesPage() {
-  const activeConversation = sampleConversations[0]; // Mock active conversation
+  const { role } = useUserRole();
+  const { profile } = useUserProfile();
+  const [directConversations, setDirectConversations] = useState<any[]>([]);
+  const [groupChats, setGroupChats] = useState<any[]>([]);
+  const [activeChat, setActiveChat] = useState<any | null>(null);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [messageInput, setMessageInput] = useState("");
+
+  // Fetch direct conversations (student-admin/owner only)
+  useEffect(() => {
+    if (!profile) return;
+    const fetchDirect = async () => {
+      let { data } = await supabase.rpc('get_direct_conversations', { user_id: profile.id });
+      setDirectConversations(data ?? []);
+    };
+    fetchDirect();
+  }, [profile]);
+
+  // Fetch group chats (courses the user is enrolled in or teaches)
+  useEffect(() => {
+    if (!profile) return;
+    const fetchGroups = async () => {
+      let { data } = await supabase.rpc('get_group_chats', { user_id: profile.id });
+      setGroupChats(data ?? []);
+    };
+    fetchGroups();
+  }, [profile]);
+
+  // Fetch messages for active chat
+  useEffect(() => {
+    if (!activeChat) return;
+    const fetchMessages = async () => {
+      let filter = activeChat.type === 'group' ? { course_id: activeChat.id } : { recipient_id: activeChat.otherUserId };
+      let { data } = await supabase.from('messages').select('*').match(filter).order('created_at', { ascending: true });
+      setMessages(data ?? []);
+    };
+    fetchMessages();
+  }, [activeChat]);
+
+  // Send message
+  const sendMessage = async () => {
+    if (!messageInput.trim() || !profile || !activeChat) return;
+    if (activeChat.type === 'group') {
+      await supabase.from('messages').insert({ course_id: activeChat.id, sender_id: profile.id, content: messageInput });
+    } else {
+      await supabase.from('messages').insert({ sender_id: profile.id, recipient_id: activeChat.otherUserId, content: messageInput });
+    }
+    setMessageInput("");
+    // Refresh messages
+    let filter = activeChat.type === 'group' ? { course_id: activeChat.id } : { recipient_id: activeChat.otherUserId };
+    let { data } = await supabase.from('messages').select('*').match(filter).order('created_at', { ascending: true });
+    setMessages(data ?? []);
+  };
+
+  const activeConversation = directConversations[0]; // Mock active conversation
 
   return (
     <div className="h-[calc(100vh-10rem)] flex flex-col">
@@ -57,7 +102,7 @@ export default function MessagesPage() {
           </CardHeader>
           <ScrollArea className="flex-1">
             <CardContent className="p-0">
-              {sampleConversations.map(convo => (
+              {directConversations.map(convo => (
                 <Button
                   key={convo.id}
                   variant="ghost"
@@ -99,7 +144,7 @@ export default function MessagesPage() {
                 </div>
               </CardHeader>
               <ScrollArea className="flex-1 p-4 space-y-4">
-                {sampleMessages.map(msg => (
+                {messages.map(msg => (
                   <div key={msg.id} className={`flex ${msg.sender === 'me' ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[70%] p-3 rounded-lg ${msg.sender === 'me' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
                       <p className="text-sm">{msg.text}</p>
@@ -110,8 +155,8 @@ export default function MessagesPage() {
               </ScrollArea>
               <CardFooter className="border-t p-4">
                 <div className="flex w-full items-center space-x-2">
-                  <Input placeholder="Type a message..." className="flex-1" />
-                  <Button>
+                  <Input placeholder="Type a message..." className="flex-1" value={messageInput} onChange={(e) => setMessageInput(e.target.value)} />
+                  <Button onClick={sendMessage}>
                     <Send className="h-5 w-5" />
                     <span className="sr-only">Send</span>
                   </Button>
@@ -120,7 +165,7 @@ export default function MessagesPage() {
             </>
           ) : (
             <div className="flex flex-col items-center justify-center h-full">
-              <MessageSquare className="h-16 w-16 text-muted-foreground mb-4" />
+              {/* <MessageSquare className="h-16 w-16 text-muted-foreground mb-4" /> */}
               <p className="text-muted-foreground">Select a conversation to start messaging.</p>
             </div>
           )}
