@@ -1,4 +1,4 @@
-"use client"
+"use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useUserRole } from "@/hooks/use-user-role"
