@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import { useSession } from 'next-auth/react';
 
 export type UserProfile = {
   id: string;
@@ -15,32 +15,25 @@ export type UserProfile = {
 };
 
 export function useUserProfile() {
+  const { data: session } = useSession();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const getProfile = async () => {
       setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      if (!session?.user?.email) {
         setProfile(null);
         setLoading(false);
         return;
       }
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-      if (error) {
-        setProfile(null);
-      } else {
-        setProfile(data as UserProfile);
-      }
+      const res = await fetch('/api/users/me');
+      if (res.ok) setProfile(await res.json());
+      else setProfile(null);
       setLoading(false);
     };
     getProfile();
-  }, []);
+  }, [session]);
 
   return { profile, loading };
 }

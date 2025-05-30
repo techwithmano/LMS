@@ -6,7 +6,6 @@ import { PlayCircle, FileText, ChevronRight, ListChecks, PlusCircle, Edit, Trash
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState, FormEvent, ChangeEvent } from "react";
-import { supabase } from "@/lib/supabaseClient";
 import { useUserRole } from "@/hooks/use-user-role";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -45,34 +44,29 @@ export default function CourseDetailPage({ params }: { params: { courseId: strin
     const fetchData = async () => {
       setLoading(true);
       setError("");
-      // Check access for students
       if (role === 'student') {
-        const { data: enrollments, error: enrollError } = await supabase
-          .from('enrollments')
-          .select('id')
-          .eq('course_id', params.courseId)
-          .eq('student_id', (await supabase.auth.getUser()).data.user?.id);
-        if (enrollError) {
-          setError(enrollError.message);
+        const enrollRes = await fetch(`/api/enrollments/me?course_id=${params.courseId}`);
+        if (!enrollRes.ok) {
+          setError("Failed to fetch enrollments");
           setLoading(false);
           return;
         }
+        const enrollments = await enrollRes.json();
         if (!enrollments || enrollments.length === 0) {
           setError('You are not enrolled in this course.');
           setLoading(false);
           return;
         }
       }
-      const { data: courseData, error: courseError } = await supabase.from('courses').select('*').eq('id', params.courseId).single();
-      if (courseError) {
-        setError(courseError.message);
+      const courseRes = await fetch(`/api/courses/${params.courseId}`);
+      if (!courseRes.ok) {
+        setError("Failed to fetch course");
         setLoading(false);
         return;
       }
-      setCourse(courseData);
-      const { data: lessonsData, error: lessonsError } = await supabase.from('lessons').select('*').eq('course_id', params.courseId).order('order_num', { ascending: true });
-      if (lessonsError) setError(lessonsError.message);
-      else setLessons(lessonsData ?? []);
+      setCourse(await courseRes.json());
+      const lessonsRes = await fetch(`/api/lessons?course_id=${params.courseId}`);
+      setLessons(lessonsRes.ok ? await lessonsRes.json() : []);
       setLoading(false);
     };
     fetchData();
@@ -81,18 +75,18 @@ export default function CourseDetailPage({ params }: { params: { courseId: strin
   useEffect(() => {
     const fetchEnrollments = async () => {
       if (role !== 'admin' && role !== 'owner') return;
-      const { data: enrolls } = await supabase.from('enrollments').select('*, profiles:student_id(email, full_name)').eq('course_id', params.courseId);
-      setEnrollments(enrolls ?? []);
-      const { data: students } = await supabase.from('profiles').select('id, email, full_name').eq('role', 'student');
-      setAllStudents(students ?? []);
+      const enrollsRes = await fetch(`/api/enrollments?course_id=${params.courseId}`);
+      setEnrollments(enrollsRes.ok ? await enrollsRes.json() : []);
+      const studentsRes = await fetch(`/api/users?role=student`);
+      setAllStudents(studentsRes.ok ? await studentsRes.json() : []);
     };
     fetchEnrollments();
   }, [params.courseId, role, showDialog]);
 
   useEffect(() => {
     const fetchFiles = async () => {
-      const { data, error } = await supabase.from('files').select('*').eq('course_id', params.courseId).order('uploaded_at', { ascending: false });
-      if (!error) setFiles(data ?? []);
+      const filesRes = await fetch(`/api/files?course_id=${params.courseId}`);
+      setFiles(filesRes.ok ? await filesRes.json() : []);
     };
     fetchFiles();
   }, [params.courseId]);
@@ -119,19 +113,16 @@ export default function CourseDetailPage({ params }: { params: { courseId: strin
     setError("");
     try {
       if (editingLesson) {
-        // Update
-        const { error } = await supabase.from('lessons').update(lessonForm).eq('id', editingLesson.id);
-        if (error) throw new Error(error.message);
+        const res = await fetch(`/api/lessons/${editingLesson.id}`, { method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify(lessonForm) });
+        if (!res.ok) throw new Error("Failed to update lesson");
       } else {
-        // Create
         const order_num = lessons.length + 1;
-        const { error } = await supabase.from('lessons').insert([{ ...lessonForm, course_id: params.courseId, order_num }]);
-        if (error) throw new Error(error.message);
+        const res = await fetch(`/api/lessons`, { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({ ...lessonForm, course_id: params.courseId, order_num }) });
+        if (!res.ok) throw new Error("Failed to create lesson");
       }
       setShowDialog(false);
-      // Refresh lessons
-      const { data, error: fetchError } = await supabase.from('lessons').select('*').eq('course_id', params.courseId).order('order_num', { ascending: true });
-      if (!fetchError) setLessons(data ?? []);
+      const lessonsRes = await fetch(`/api/lessons?course_id=${params.courseId}`);
+      setLessons(lessonsRes.ok ? await lessonsRes.json() : []);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -142,8 +133,8 @@ export default function CourseDetailPage({ params }: { params: { courseId: strin
     if (!confirm('Are you sure you want to delete this lesson?')) return;
     setSaving(true);
     try {
-      const { error } = await supabase.from('lessons').delete().eq('id', id);
-      if (error) throw new Error(error.message);
+      const res = await fetch(`/api/lessons/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete lesson");
       setLessons(lessons.filter((l: any) => l.id !== id));
     } catch (err: any) {
       setError(err.message);
@@ -151,16 +142,16 @@ export default function CourseDetailPage({ params }: { params: { courseId: strin
       setSaving(false);
     }
   };
-  const handleEnroll = async (e: FormEvent) => {
-    e.preventDefault();
+  const handleEnroll = async () => {
+    if (!selectedStudent) return;
     setEnrolling(true);
+    setError("");
     try {
-      const { error } = await supabase.from('enrollments').insert([{ course_id: params.courseId, student_id: selectedStudent }]);
-      if (error) throw new Error(error.message);
+      const res = await fetch(`/api/enrollments`, { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({ course_id: params.courseId, student_id: selectedStudent }) });
+      if (!res.ok) throw new Error("Failed to enroll student");
       setSelectedStudent("");
-      // Refresh
-      const { data: enrolls } = await supabase.from('enrollments').select('*, profiles:student_id(email, full_name)').eq('course_id', params.courseId);
-      setEnrollments(enrolls ?? []);
+      const enrollsRes = await fetch(`/api/enrollments?course_id=${params.courseId}`);
+      setEnrollments(enrollsRes.ok ? await enrollsRes.json() : []);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -168,41 +159,31 @@ export default function CourseDetailPage({ params }: { params: { courseId: strin
     }
   };
   const handleUnenroll = async (enrollmentId: string) => {
-    if (!confirm('Remove this student from the course?')) return;
+    if (!confirm('Are you sure you want to remove this enrollment?')) return;
     setEnrolling(true);
+    setError("");
     try {
-      const { error } = await supabase.from('enrollments').delete().eq('id', enrollmentId);
-      if (error) throw new Error(error.message);
-      setEnrollments(enrollments.filter((e: any) => e.id !== enrollmentId));
+      const res = await fetch(`/api/enrollments/${enrollmentId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to remove enrollment");
+      const enrollsRes = await fetch(`/api/enrollments?course_id=${params.courseId}`);
+      setEnrollments(enrollsRes.ok ? await enrollsRes.json() : []);
     } catch (err: any) {
       setError(err.message);
     } finally {
       setEnrolling(false);
     }
   };
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !profile) return;
+  const handleFileUpload = async (file: File) => {
     setUploading(true);
     setFileError("");
     try {
-      // Upload to Supabase Storage
-      const filePath = `${params.courseId}/${Date.now()}_${file.name}`;
-      let { error: uploadError } = await supabase.storage.from('course-files').upload(filePath, file);
-      if (uploadError) throw new Error(uploadError.message);
-      const fileUrl = supabase.storage.from('course-files').getPublicUrl(filePath).publicUrl;
-      // Insert metadata
-      const { error: dbError } = await supabase.from('files').insert({
-        course_id: params.courseId,
-        uploader_id: profile.id,
-        file_url: fileUrl,
-        file_name: file.name,
-        file_type: file.type,
-      });
-      if (dbError) throw new Error(dbError.message);
-      // Refresh
-      const { data } = await supabase.from('files').select('*').eq('course_id', params.courseId).order('uploaded_at', { ascending: false });
-      setFiles(data ?? []);
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("course_id", params.courseId);
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      if (!res.ok) throw new Error("Failed to upload file");
+      const filesRes = await fetch(`/api/files?course_id=${params.courseId}`);
+      setFiles(filesRes.ok ? await filesRes.json() : []);
     } catch (err: any) {
       setFileError(err.message);
     } finally {
@@ -403,7 +384,10 @@ export default function CourseDetailPage({ params }: { params: { courseId: strin
         <CardContent>
           {(role === 'admin' || role === 'owner' || role === 'student') && (
             <div className="mb-4">
-              <input type="file" onChange={handleFileUpload} disabled={uploading} />
+              <input type="file" onChange={e => {
+                const file = e.target.files?.[0];
+                if (file) handleFileUpload(file);
+              }} disabled={uploading} />
               {fileError && <div className="text-red-600 text-sm mt-1">{fileError}</div>}
             </div>
           )}

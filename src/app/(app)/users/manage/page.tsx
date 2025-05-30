@@ -10,19 +10,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useUserRole } from "@/hooks/use-user-role";
-import { supabase } from "@/lib/supabaseClient";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import axios from "axios";
 
-function generateRandomPassword(length = 10) {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$';
-  let pass = '';
-  for (let i = 0; i < length; i++) {
-    pass += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return pass;
-}
+// All Supabase logic removed. All user CRUD is now via /api/users endpoints using axios.
 
 export default function ManageUsersPage() {
   const { role } = useUserRole();
@@ -45,9 +38,12 @@ export default function ManageUsersPage() {
   useEffect(() => {
     const fetchUsers = async () => {
       setLoading(true);
-      const { data, error } = await supabase.from('profiles').select('*');
-      if (error) setError(error.message);
-      else setUsers(data);
+      try {
+        const res = await axios.get("/api/users");
+        setUsers(res.data);
+      } catch (err: any) {
+        setError(err.message);
+      }
       setLoading(false);
     };
     fetchUsers();
@@ -68,25 +64,8 @@ export default function ManageUsersPage() {
     setCreatedCreds(null);
     setError("");
     try {
-      // 1. Create user in Supabase Auth
-      const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
-        email: newUser.email,
-        password: newUser.password,
-        email_confirm: true,
-      });
-      if (authError || !authUser.user) throw new Error(authError?.message || 'Failed to create user');
-
-      // 2. Insert profile
-      const { error: profileError } = await supabase.from('profiles').upsert({
-        id: authUser.user.id,
-        email: newUser.email,
-        full_name: newUser.full_name,
-        student_id: newUser.user_id,
-        role: newUser.role,
-      });
-      if (profileError) throw new Error(profileError.message);
-
-      // 3. Show success message
+      // 1. Create user in MongoDB via API
+      const res = await axios.post("/api/users", newUser);
       setCreatedCreds({ email: newUser.email, password: newUser.password });
       toast({
         title: 'User created successfully',

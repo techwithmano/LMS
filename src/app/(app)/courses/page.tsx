@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
 import { useUserRole } from "@/hooks/use-user-role";
 
 export default function CoursesPage() {
@@ -21,33 +20,26 @@ export default function CoursesPage() {
       let data = [];
       let error = null;
       if (role === 'student') {
-        // Only fetch courses the student is enrolled in
-        const { data: enrollments, error: enrollError } = await supabase
-          .from('enrollments')
-          .select('course_id')
-          .eq('student_id', (await supabase.auth.getUser()).data.user?.id);
-        if (enrollError) {
-          setError(enrollError.message);
+        const enrollRes = await fetch("/api/enrollments/me");
+        if (!enrollRes.ok) {
+          setError("Failed to fetch enrollments");
           setLoading(false);
           return;
         }
-        const courseIds = enrollments?.map((e: any) => e.course_id) || [];
+        const enrollments = await enrollRes.json();
+        const courseIds = enrollments.map((e: any) => e.course_id) || [];
         if (courseIds.length === 0) {
           setCourses([]);
           setLoading(false);
           return;
         }
-        const { data: courseData, error: courseError } = await supabase
-          .from('courses')
-          .select('*')
-          .in('id', courseIds);
-        data = courseData ?? [];
-        error = courseError;
+        const courseRes = await fetch(`/api/courses?ids=${courseIds.join(",")}`);
+        data = courseRes.ok ? await courseRes.json() : [];
+        error = courseRes.ok ? null : { message: "Failed to fetch courses" };
       } else {
-        // Admin/Owner: fetch all courses
-        const { data: courseData, error: courseError } = await supabase.from('courses').select('*');
-        data = courseData ?? [];
-        error = courseError;
+        const courseRes = await fetch("/api/courses");
+        data = courseRes.ok ? await courseRes.json() : [];
+        error = courseRes.ok ? null : { message: "Failed to fetch courses" };
       }
       if (error) setError(error.message);
       else setCourses(data ?? []);

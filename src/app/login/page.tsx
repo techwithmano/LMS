@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { signIn } from "next-auth/react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -18,13 +18,11 @@ export default function LoginPage() {
     setLoading(true);
     try {
       // Map userId to email
-      const { data, error: profileError } = await supabase.from('profiles').select('email').eq('student_id', userId).single();
-      if (profileError || !data?.email) throw new Error("User ID not found");
-      const { error: authError } = await supabase.auth.signInWithPassword({
-        email: data.email,
-        password,
-      });
-      if (authError) throw new Error(authError.message);
+      const res = await fetch(`/api/users/by-student-id/${userId}`);
+      const data = await res.json();
+      if (!res.ok || !data?.email) throw new Error("User ID not found");
+      const result = await signIn("credentials", { redirect: false, email: data.email, password });
+      if (result?.error) throw new Error(result.error);
       window.location.href = "/dashboard";
     } catch (err: any) {
       setError(err.message);

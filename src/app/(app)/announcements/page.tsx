@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, FormEvent, ChangeEvent } from "react";
-import { supabase } from "@/lib/supabaseClient";
 import { useUserRole } from "@/hooks/use-user-role";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,9 +34,9 @@ export default function AnnouncementsPage() {
     const fetchAnnouncements = async () => {
       setLoading(true);
       setError("");
-      let { data, error } = await supabase.from('announcements').select('*').order('created_at', { ascending: false });
-      if (error) setError(error.message);
-      else setAnnouncements(data ?? []);
+      const res = await fetch("/api/announcements");
+      if (!res.ok) setError("Failed to fetch announcements");
+      else setAnnouncements(await res.json());
       setLoading(false);
     };
     fetchAnnouncements();
@@ -63,16 +62,16 @@ export default function AnnouncementsPage() {
     setError("");
     try {
       const tagsArr = form.tags.split(',').map(t => t.trim()).filter(Boolean);
+      let res;
       if (editingAnnouncement) {
-        const { error } = await supabase.from('announcements').update({ ...form, tags: tagsArr }).eq('id', editingAnnouncement.id);
-        if (error) throw new Error(error.message);
+        res = await fetch(`/api/announcements/${editingAnnouncement.id}`, { method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify({ ...form, tags: tagsArr }) });
       } else {
-        const { error } = await supabase.from('announcements').insert([{ ...form, tags: tagsArr }]);
-        if (error) throw new Error(error.message);
+        res = await fetch("/api/announcements", { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({ ...form, tags: tagsArr }) });
       }
+      if (!res.ok) throw new Error("Failed to save announcement");
       setShowDialog(false);
-      const { data, error: fetchError } = await supabase.from('announcements').select('*').order('created_at', { ascending: false });
-      if (!fetchError) setAnnouncements(data ?? []);
+      const aRes = await fetch("/api/announcements");
+      setAnnouncements(aRes.ok ? await aRes.json() : []);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -83,8 +82,8 @@ export default function AnnouncementsPage() {
     if (!confirm('Are you sure you want to delete this announcement?')) return;
     setSaving(true);
     try {
-      const { error } = await supabase.from('announcements').delete().eq('id', id);
-      if (error) throw new Error(error.message);
+      const res = await fetch(`/api/announcements/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete announcement");
       setAnnouncements(announcements.filter((a: any) => a.id !== id));
     } catch (err: any) {
       setError(err.message);

@@ -1,35 +1,22 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import { useState } from 'react';
+import { signIn, signOut, useSession } from 'next-auth/react';
 
 export function useAuth() {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { data: session, status } = useSession();
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const session = supabase.auth.getSession().then(({ data }) => {
-      setUser(data.session?.user ?? null);
-      setLoading(false);
-    });
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-    return () => {
-      listener?.subscription.unsubscribe();
-    };
-  }, []);
-
-  const signIn = async (email: string, password: string) => {
+  const signInUser = async (email: string, password: string) => {
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const result = await signIn('credentials', { redirect: false, email, password });
     setLoading(false);
-    return error;
+    return result?.error;
   };
 
-  const signOut = async () => {
+  const signOutUser = async () => {
     setLoading(true);
-    await supabase.auth.signOut();
+    await signOut({ redirect: false });
     setLoading(false);
   };
 
-  return { user, loading, signIn, signOut };
+  return { user: session?.user ?? null, loading: status === 'loading' || loading, signIn: signInUser, signOut: signOutUser };
 }

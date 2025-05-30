@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useEffect } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { useSession } from "next-auth/react";
 
 export default function LandingPage() {
   useEffect(() => {
     // If user is authenticated, redirect to dashboard/courses
-    supabase.auth.getUser().then(({ data }) => {
-      if (data.user) {
+    import("next-auth/react").then(({ useSession }) => {
+      const { data: session } = useSession();
+      if (session?.user) {
         window.location.href = "/dashboard";
       }
     });

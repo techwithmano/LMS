@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, CheckCircle } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
 
 export default function LessonPage({ params }: { params: { courseId: string, lessonId: string } }) {
   const [lesson, setLesson] = useState<any>(null);
@@ -16,14 +15,9 @@ export default function LessonPage({ params }: { params: { courseId: string, les
     const fetchLesson = async () => {
       setLoading(true);
       setError("");
-      const { data, error } = await supabase
-        .from('lessons')
-        .select('*')
-        .eq('course_id', params.courseId)
-        .eq('id', params.lessonId)
-        .single();
-      if (error) setError(error.message);
-      else setLesson(data);
+      const res = await fetch(`/api/lessons/${params.lessonId}?course_id=${params.courseId}`);
+      if (!res.ok) setError("Failed to fetch lesson");
+      else setLesson(await res.json());
       setLoading(false);
     };
     fetchLesson();

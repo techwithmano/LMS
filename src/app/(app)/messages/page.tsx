@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
@@ -40,8 +39,8 @@ export default function MessagesPage() {
   useEffect(() => {
     if (!profile) return;
     const fetchDirect = async () => {
-      let { data } = await supabase.rpc('get_direct_conversations', { user_id: profile.id });
-      setDirectConversations(data ?? []);
+      const res = await fetch(`/api/conversations?user_id=${profile.id}`);
+      setDirectConversations(res.ok ? await res.json() : []);
     };
     fetchDirect();
   }, [profile]);
@@ -50,8 +49,8 @@ export default function MessagesPage() {
   useEffect(() => {
     if (!profile) return;
     const fetchGroups = async () => {
-      let { data } = await supabase.rpc('get_group_chats', { user_id: profile.id });
-      setGroupChats(data ?? []);
+      const res = await fetch(`/api/groupchats?user_id=${profile.id}`);
+      setGroupChats(res.ok ? await res.json() : []);
     };
     fetchGroups();
   }, [profile]);
@@ -60,9 +59,9 @@ export default function MessagesPage() {
   useEffect(() => {
     if (!activeChat) return;
     const fetchMessages = async () => {
-      let filter = activeChat.type === 'group' ? { course_id: activeChat.id } : { recipient_id: activeChat.otherUserId };
-      let { data } = await supabase.from('messages').select('*').match(filter).order('created_at', { ascending: true });
-      setMessages(data ?? []);
+      let url = activeChat.type === 'group' ? `/api/messages?course_id=${activeChat.id}` : `/api/messages?recipient_id=${activeChat.otherUserId}`;
+      const res = await fetch(url);
+      setMessages(res.ok ? await res.json() : []);
     };
     fetchMessages();
   }, [activeChat]);
@@ -70,16 +69,13 @@ export default function MessagesPage() {
   // Send message
   const sendMessage = async () => {
     if (!messageInput.trim() || !profile || !activeChat) return;
-    if (activeChat.type === 'group') {
-      await supabase.from('messages').insert({ course_id: activeChat.id, sender_id: profile.id, content: messageInput });
-    } else {
-      await supabase.from('messages').insert({ sender_id: profile.id, recipient_id: activeChat.otherUserId, content: messageInput });
-    }
+    let body = activeChat.type === 'group' ? { course_id: activeChat.id, sender_id: profile.id, content: messageInput } : { sender_id: profile.id, recipient_id: activeChat.otherUserId, content: messageInput };
+    await fetch("/api/messages", { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body) });
     setMessageInput("");
     // Refresh messages
-    let filter = activeChat.type === 'group' ? { course_id: activeChat.id } : { recipient_id: activeChat.otherUserId };
-    let { data } = await supabase.from('messages').select('*').match(filter).order('created_at', { ascending: true });
-    setMessages(data ?? []);
+    let url = activeChat.type === 'group' ? `/api/messages?course_id=${activeChat.id}` : `/api/messages?recipient_id=${activeChat.otherUserId}`;
+    const res = await fetch(url);
+    setMessages(res.ok ? await res.json() : []);
   };
 
   const activeConversation = directConversations[0]; // Mock active conversation
