@@ -14,6 +14,7 @@ export default function ProfilePage() {
   const userName = `${role.charAt(0).toUpperCase() + role.slice(1)} User`;
   const userEmail = `${role}@example.com`;
   const userInitials = userName.split(" ").map(n => n[0]).join("").substring(0,2).toUpperCase();
+  const userId = "123456"; // Placeholder for user ID
 
   return (
     <div className="space-y-6">
@@ -44,11 +45,19 @@ export default function ProfilePage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label htmlFor="fullName">Full Name</Label>
-                <Input id="fullName" defaultValue={userName} />
+                <Input id="fullName" value={userName} readOnly />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="email">Email Address</Label>
-                <Input id="email" type="email" defaultValue={userEmail} />
+                <Input id="email" type="email" value={userEmail} readOnly />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="userId">User ID</Label>
+                <Input id="userId" value={userId} readOnly />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="role">Role</Label>
+                <Input id="role" value={role.charAt(0).toUpperCase() + role.slice(1)} readOnly />
               </div>
             </div>
             <div className="space-y-1.5">

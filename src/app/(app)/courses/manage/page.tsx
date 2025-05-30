@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/lib/supabaseClient";
 import { useUserRole } from "@/hooks/use-user-role";
+import { toast } from "@/hooks/use-toast";
 
 export default function ManageCoursesPage() {
   const { role } = useUserRole();
@@ -21,6 +22,11 @@ export default function ManageCoursesPage() {
   const [form, setForm] = useState<{ title: string; description: string; instructor: string; image_url: string }>({ title: '', description: '', instructor: '', image_url: '' });
   const [saving, setSaving] = useState(false);
 
+  // Add enrollment functionality
+  const [enrollmentForm, setEnrollmentForm] = useState({ course_id: '', student_id: '' });
+  const [students, setStudents] = useState<any[]>([]);
+  const [showEnrollmentDialog, setShowEnrollmentDialog] = useState(false);
+
   useEffect(() => {
     const fetchCourses = async () => {
       setLoading(true);
@@ -31,6 +37,14 @@ export default function ManageCoursesPage() {
       setLoading(false);
     };
     fetchCourses();
+  }, []);
+
+  useEffect(() => {
+    const fetchStudents = async () => {
+      const { data, error } = await supabase.from('profiles').select('id, full_name').eq('role', 'student');
+      if (!error) setStudents(data ?? []);
+    };
+    fetchStudents();
   }, []);
 
   const openCreate = () => {
@@ -85,6 +99,21 @@ export default function ManageCoursesPage() {
       setSaving(false);
     }
   };
+  const handleEnroll = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      const { error } = await supabase.from('enrollments').insert([{ ...enrollmentForm }]);
+      if (error) throw new Error(error.message);
+      setShowEnrollmentDialog(false);
+      toast({ title: 'Student enrolled successfully' });
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -126,6 +155,37 @@ export default function ManageCoursesPage() {
             {error && <div className="text-red-600 text-sm text-center">{error}</div>}
             <DialogFooter>
               <Button type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={showEnrollmentDialog} onOpenChange={setShowEnrollmentDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Enroll Student</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEnroll} className="space-y-4">
+            <div>
+              <Label htmlFor="course">Course</Label>
+              <select id="course" className="w-full border rounded-md p-2" value={enrollmentForm.course_id} onChange={e => setEnrollmentForm({ ...enrollmentForm, course_id: e.target.value })} required>
+                <option value="">Select a course</option>
+                {courses.map(course => (
+                  <option key={course.id} value={course.id}>{course.title}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label htmlFor="student">Student</Label>
+              <select id="student" className="w-full border rounded-md p-2" value={enrollmentForm.student_id} onChange={e => setEnrollmentForm({ ...enrollmentForm, student_id: e.target.value })} required>
+                <option value="">Select a student</option>
+                {students.map(student => (
+                  <option key={student.id} value={student.id}>{student.full_name}</option>
+                ))}
+              </select>
+            </div>
+            {error && <div className="text-red-600 text-sm text-center">{error}</div>}
+            <DialogFooter>
+              <Button type="submit" disabled={saving}>{saving ? 'Enrolling...' : 'Enroll Student'}</Button>
             </DialogFooter>
           </form>
         </DialogContent>

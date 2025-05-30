@@ -264,6 +264,14 @@ export default function QuizzesPage() {
               <Label htmlFor="total_points">Total Points</Label>
               <Input id="total_points" type="number" value={quizForm.total_points} onChange={e => setQuizForm(f => ({ ...f, total_points: Number(e.target.value) }))} />
             </div>
+            <div>
+              <Label htmlFor="pdf_link">PDF Link</Label>
+              <Input id="pdf_link" type="url" value={quizForm.pdf_link} onChange={e => setQuizForm(f => ({ ...f, pdf_link: e.target.value }))} />
+            </div>
+            <div>
+              <Label htmlFor="submission_link">Submission Form Link</Label>
+              <Input id="submission_link" type="url" value={quizForm.submission_link} onChange={e => setQuizForm(f => ({ ...f, submission_link: e.target.value }))} />
+            </div>
             {error && <div className="text-red-600 text-sm text-center">{error}</div>}
             <DialogFooter>
               <Button type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button>

@@ -34,6 +34,8 @@ export default function ManageUsersPage() {
   const [newUser, setNewUser] = useState({
     full_name: '',
     email: '',
+    user_id: '',
+    password: '',
     role: 'student',
   });
   const [creating, setCreating] = useState(false);
@@ -66,29 +68,31 @@ export default function ManageUsersPage() {
     setCreatedCreds(null);
     setError("");
     try {
-      const password = generateRandomPassword();
       // 1. Create user in Supabase Auth
       const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
         email: newUser.email,
-        password,
+        password: newUser.password,
         email_confirm: true,
       });
       if (authError || !authUser.user) throw new Error(authError?.message || 'Failed to create user');
+
       // 2. Insert profile
       const { error: profileError } = await supabase.from('profiles').upsert({
         id: authUser.user.id,
         email: newUser.email,
         full_name: newUser.full_name,
+        student_id: newUser.user_id,
         role: newUser.role,
       });
       if (profileError) throw new Error(profileError.message);
-      setCreatedCreds({ email: newUser.email, password });
+
+      // 3. Show success message
+      setCreatedCreds({ email: newUser.email, password: newUser.password });
+      toast({
+        title: 'User created successfully',
+        description: `User ID: ${newUser.user_id}, Password: ${newUser.password}`,
+      });
       setShowDialog(false);
-      setNewUser({ full_name: '', email: '', role: 'student' });
-      toast({ title: 'User created!', description: 'Copy credentials and send to the user.' });
-      // Refresh users list
-      const { data, error } = await supabase.from('profiles').select('*');
-      if (!error) setUsers(data);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -124,6 +128,14 @@ export default function ManageUsersPage() {
                 <div>
                   <Label htmlFor="email">Email</Label>
                   <Input id="email" type="email" value={newUser.email} onChange={e => setNewUser({ ...newUser, email: e.target.value })} required />
+                </div>
+                <div>
+                  <Label htmlFor="user_id">User ID</Label>
+                  <Input id="user_id" value={newUser.user_id} onChange={e => setNewUser({ ...newUser, user_id: e.target.value })} required />
+                </div>
+                <div>
+                  <Label htmlFor="password">Password</Label>
+                  <Input id="password" type="password" value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} required />
                 </div>
                 <div>
                   <Label htmlFor="role">Role</Label>
