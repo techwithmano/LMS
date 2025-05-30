@@ -17,12 +17,9 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
-      // Map userId to email
-      const res = await fetch(`/api/users/by-student-id/${userId}`);
-      const data = await res.json();
-      if (!res.ok || !data?.email) throw new Error("User ID not found");
-      const result = await signIn("credentials", { redirect: false, email: data.email, password });
-      if (result?.error) throw new Error(result.error);
+      // Sign in directly with userId
+      const result = await signIn("credentials", { redirect: false, userId, password });
+      if (result?.error) throw new Error("Invalid User ID or password");
       window.location.href = "/dashboard";
     } catch (err: any) {
       setError(err.message);
@@ -37,7 +34,7 @@ export default function LoginPage() {
         <h1 className="text-3xl font-bold text-blue-700 mb-2 text-center">Sign In</h1>
         <div>
           <Label htmlFor="userId">User ID</Label>
-          <Input id="userId" value={userId} onChange={e => setUserId(e.target.value)} placeholder="e.g. ST001" required autoFocus />
+          <Input id="userId" value={userId} onChange={e => setUserId(e.target.value)} placeholder="e.g. AD001, ST001" required autoFocus />
         </div>
         <div>
           <Label htmlFor="password">Password</Label>

@@ -5,9 +5,9 @@ export function useAuth() {
   const { data: session, status } = useSession();
   const [loading, setLoading] = useState(false);
 
-  const signInUser = async (email: string, password: string) => {
+  const signInUser = async (userId: string, password: string) => {
     setLoading(true);
-    const result = await signIn('credentials', { redirect: false, email, password });
+    const result = await signIn('credentials', { redirect: false, userId, password });
     setLoading(false);
     return result?.error;
   };
